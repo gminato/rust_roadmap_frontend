@@ -5,14 +5,21 @@ import { Header } from './components/organisms/Header.jsx';
 import { WeekView } from './components/organisms/WeekView.jsx';
 import ExerciseModal from './components/organisms/ExerciseModal.jsx';
 import { useAuth } from './contexts/AuthContext.jsx';
+import { useMobileView } from './hooks/useMobileView.js';
 
 const App = () => {
   const { user, isLoading, authenticatedFetch } = useAuth();
+  const isMobile = useMobileView();
   const [selectedMonthId, setSelectedMonthId] = useState(1);
   const [selectedWeekId, setSelectedWeekId] = useState(1);
   const [selectedExercise, setSelectedExercise] = useState(null);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(!isMobile);
   const [completedExercises, setCompletedExercises] = useState(new Set());
+
+  // Sync sidebar state with mobile view
+  useEffect(() => {
+    setIsSidebarOpen(!isMobile);
+  }, [isMobile]);
 
   // Load progress whenever user changes (Guest vs Logged In)
   useEffect(() => {
@@ -55,17 +62,17 @@ const App = () => {
       if (user && authenticatedFetch) {
         // Logged-in user: sync with backend using authenticated fetch (auto-refresh)
         const backendUrl = import.meta.env.VITE_BACKEND_API_URL;
-        
+
         authenticatedFetch(`${backendUrl}/user/progress`, {
           method: 'POST',
           body: JSON.stringify({ progress: progressArray })
         })
-        .then(res => {
-          if (!res.ok) {
-            console.error('Failed to sync progress with backend');
-          }
-        })
-        .catch(err => console.error('Backend sync error:', err));
+          .then(res => {
+            if (!res.ok) {
+              console.error('Failed to sync progress with backend');
+            }
+          })
+          .catch(err => console.error('Backend sync error:', err));
       } else if (!user) {
         // Guest user: save to localStorage only
         localStorage.setItem('rust_progress_guest', JSON.stringify(progressArray));
@@ -100,7 +107,13 @@ const App = () => {
         selectedWeekId={selectedWeekId}
         isOpen={isSidebarOpen}
         onSelectMonth={handleMonthSelect}
-        onSelectWeek={setSelectedWeekId}
+        onSelectWeek={(id) => {
+          setSelectedWeekId(id);
+          if (isMobile) {
+            setIsSidebarOpen(false);
+          }
+        }}
+        onClose={() => setIsSidebarOpen(false)}
         completedExercises={completedExercises}
       />
 
