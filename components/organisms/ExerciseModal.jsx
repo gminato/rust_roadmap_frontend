@@ -1,10 +1,63 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { MarkdownRenderer } from '../atoms/MarkdownRenderer.jsx';
 import { Badge } from '../atoms/Badge.jsx';
 
+// Cache for question data to prevent duplicate API calls
+const questionCache = {};
+const loadingCache = {};
+
 const ExerciseModal = ({ exercise, onClose }) => {
+    const [questionData, setQuestionData] = useState(null);
+    const [isLoading, setIsLoading] = useState(false);
+
+    useEffect(() => {
+        if (!exercise) return;
+
+        const cacheKey = `${exercise.id}-${exercise.slug || exercise.id}`;
+
+        // If already cached, use cached data
+        if (questionCache[cacheKey]) {
+            setQuestionData(questionCache[cacheKey]);
+            setIsLoading(false);
+            return;
+        }
+
+        // If already loading, skip
+        if (loadingCache[cacheKey]) {
+            return;
+        }
+
+        const fetchQuestionData = async () => {
+            loadingCache[cacheKey] = true;
+            setIsLoading(true);
+            try {
+                const response = await fetch(
+                    `https://us-central1-rustpractice-84f71.cloudfunctions.net/getQuestionById?id=${exercise.id}&slug=${exercise.slug || exercise.id}`
+                );
+                if (response.ok) {
+                    const data = await response.json();
+                    questionCache[cacheKey] = data;
+                    setQuestionData(data);
+                } else {
+                    console.error('Failed to fetch question data');
+                    setQuestionData(null);
+                }
+            } catch (error) {
+                console.error('Error fetching question data:', error);
+                setQuestionData(null);
+            } finally {
+                setIsLoading(false);
+                delete loadingCache[cacheKey];
+            }
+        };
+
+        fetchQuestionData();
+    }, [exercise]);
+
     if (!exercise) return null;
+
+    const displayData = questionData || exercise;
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
@@ -14,10 +67,10 @@ const ExerciseModal = ({ exercise, onClose }) => {
                 <div className="flex items-center justify-between p-6 border-b border-zinc-800">
                     <div className="flex items-center gap-4">
                         <h2 className="text-2xl font-bold text-zinc-100 font-mono">
-                            <span className="text-rust-500">fn</span> {exercise.title}
+                            <span className="text-rust-500">fn</span> {displayData.title}
                         </h2>
-                        <Badge variant={exercise.difficulty}>
-                            {exercise.difficulty}
+                        <Badge variant={displayData.difficulty}>
+                            {displayData.difficulty}
                         </Badge>
                     </div>
                     <button
@@ -30,50 +83,69 @@ const ExerciseModal = ({ exercise, onClose }) => {
 
                 {/* Content */}
                 <div className="flex-1 overflow-y-auto p-6">
-                    <div className="space-y-6">
-
-                        {/* Description */}
-                        <div>
-                            <h3 className="text-sm font-mono text-zinc-400 mb-3 uppercase tracking-widest">Description</h3>
-                            <p className="text-zinc-300 leading-relaxed">{exercise.description}</p>
+                    {isLoading ? (
+                        <div className="flex items-center justify-center py-12">
+                            <p className="text-zinc-500">Loading question details...</p>
                         </div>
+                    ) : (
+                        <div className="space-y-6">
 
-                        {/* Problem Statement */}
-                        {exercise.problem && (
-                            <div>
-                                <h3 className="text-sm font-mono text-zinc-400 mb-3 uppercase tracking-widest">Problem</h3>
-                                <div className="prose prose-invert max-w-none prose-p:text-zinc-300 prose-code:text-rust-400 prose-pre:bg-black prose-pre:border prose-pre:border-zinc-800">
-                                    <MarkdownRenderer content={exercise.problem} />
+                            {/* Description - only show basic description if no detailed data available */}
+                            {!questionData && (
+                                <div>
+                                    <h3 className="text-sm font-mono text-zinc-400 mb-3 uppercase tracking-widest">Description</h3>
+                                    <p className="text-zinc-300 leading-relaxed">{displayData.description}</p>
                                 </div>
-                            </div>
-                        )}
+                            )}
 
-                        {/* Hints */}
-                        {exercise.hints && exercise.hints.length > 0 && (
-                            <div>
-                                <h3 className="text-sm font-mono text-zinc-400 mb-3 uppercase tracking-widest">Hints</h3>
-                                <ul className="space-y-2">
-                                    {exercise.hints.map((hint, idx) => (
-                                        <li key={idx} className="text-zinc-400 flex gap-2">
-                                            <span className="text-rust-500 font-mono">•</span>
-                                            <span>{hint}</span>
-                                        </li>
-                                    ))}
-                                </ul>
-                            </div>
-                        )}
+                            {/* Content Markdown - show detailed description and content from API */}
+                            {questionData && (
+                                <>
+                                    {questionData.detailed_description && (
+                                        <div>
+                                            <h3 className="text-sm font-mono text-zinc-400 mb-3 uppercase tracking-widest">Description</h3>
+                                            <p className="text-zinc-300 leading-relaxed">{questionData.detailed_description}</p>
+                                        </div>
+                                    )}
+                                </>
+                            )}
 
-                        {/* Solution */}
-                        {exercise.solution && (
-                            <div>
-                                <h3 className="text-sm font-mono text-zinc-400 mb-3 uppercase tracking-widest">Solution</h3>
-                                <div className="prose prose-invert max-w-none prose-p:text-zinc-300 prose-code:text-rust-400 prose-pre:bg-black prose-pre:border prose-pre:border-zinc-800">
-                                    <MarkdownRenderer content={exercise.solution} />
+                            {/* Tags */}
+                            {displayData.tags && displayData.tags.length > 0 && (
+                                <div>
+                                    <h3 className="text-sm font-mono text-zinc-400 mb-3 uppercase tracking-widest">Topics</h3>
+                                    <div className="flex flex-wrap gap-2">
+                                        {displayData.tags.map((tag, idx) => (
+                                            <Badge key={idx} variant="topic">
+                                                {tag}
+                                            </Badge>
+                                        ))}
+                                    </div>
                                 </div>
-                            </div>
-                        )}
+                            )}
 
-                    </div>
+                            {/* Hint */}
+                            {displayData.hint && (
+                                <div>
+                                    <h3 className="text-sm font-mono text-zinc-400 mb-3 uppercase tracking-widest">Hint</h3>
+                                    <p className="text-zinc-400">{displayData.hint}</p>
+                                </div>
+                            )}
+
+                            {/* Stats */}
+                            {questionData && (
+                                <div className="flex gap-6 text-sm text-zinc-500">
+                                    <div>
+                                        <span className="font-mono">People Solved:</span> <span className="text-zinc-300">{questionData.people_solved || 0}</span>
+                                    </div>
+                                    <div>
+                                        <span className="font-mono">Likes:</span> <span className="text-zinc-300">{questionData.likes || 0}</span>
+                                    </div>
+                                </div>
+                            )}
+
+                        </div>
+                    )}
                 </div>
 
             </div>
