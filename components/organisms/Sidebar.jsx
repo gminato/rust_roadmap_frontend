@@ -1,7 +1,7 @@
 import React from 'react';
 import { Github, BookOpen, Cpu, Terminal, Check, ChevronLeft } from 'lucide-react';
 
-export const Sidebar = ({
+const SidebarComponent = ({
   months,
   selectedMonthId,
   selectedWeekId,
@@ -16,6 +16,12 @@ export const Sidebar = ({
     2: Cpu,      // Intermediate
     3: Terminal  // Systems
   };
+
+  // Generate week numbers for selected month (assuming 4 weeks per month)
+  const weeksForMonth = selectedMonthId ? Array.from({ length: 4 }, (_, i) => ({
+    id: i + 1,
+    title: `Week ${i + 1}`
+  })) : [];
 
   return (
     <aside
@@ -54,29 +60,20 @@ export const Sidebar = ({
 
               {selectedMonthId === month.id && (
                 <div className="ml-4 border-l border-zinc-800 pl-4 space-y-1">
-                  {month.weeks.length > 0 ? (
-                    month.weeks.map((week) => {
-                      const isCompleted = week.exercises.length > 0 && week.exercises.every(ex => completedExercises.has(ex.id));
-
-                      return (
-                        <button
-                          key={week.id}
-                          onClick={() => onSelectWeek(week.id)}
-                          className={`w-full text-left px-3 py-2 rounded text-sm transition-all flex items-center justify-between group
-                              ${selectedWeekId === week.id
-                              ? 'bg-rust-900/20 text-rust-200 border-l-2 border-rust-500'
-                              : 'text-zinc-500 hover:text-zinc-300 border-l-2 border-transparent'}`}
-                        >
-                          <span>{week.title}</span>
-                          {isCompleted && (
-                            <Check size={14} className="text-green-500" />
-                          )}
-                        </button>
-                      );
-                    })
-                  ) : (
-                    <p className="text-xs text-zinc-600 px-3 py-2 italic">Content coming soon</p>
-                  )}
+                  {weeksForMonth.map((week) => {
+                    return (
+                      <button
+                        key={week.id}
+                        onClick={() => onSelectWeek(week.id)}
+                        className={`w-full text-left px-3 py-2 rounded text-sm transition-all flex items-center justify-between group
+                            ${selectedWeekId === week.id
+                            ? 'bg-rust-900/20 text-rust-200 border-l-2 border-rust-500'
+                            : 'text-zinc-500 hover:text-zinc-300 border-l-2 border-transparent'}`}
+                      >
+                        <span>{week.title}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -86,3 +83,5 @@ export const Sidebar = ({
     </aside>
   );
 };
+
+export const Sidebar = React.memo(SidebarComponent);

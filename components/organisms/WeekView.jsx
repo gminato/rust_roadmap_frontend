@@ -1,30 +1,87 @@
-import React from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { MarkdownRenderer } from '../atoms/MarkdownRenderer.jsx';
 import { Badge } from '../atoms/Badge.jsx';
 import { ExerciseCard } from '../molecules/ExerciseCard.jsx';
 import { FolderTree, Terminal } from 'lucide-react';
 
-export const WeekView = ({ week, onOpenExercise, completedExercises = new Set(), onToggleExercise }) => {
-  if (!week) {
+// Cache outside component to persist across re-renders
+const weekDataCache = {};
+
+const WeekViewComponent = ({ monthId, weekId, onOpenExercise, completedExercises = new Set(), onToggleExercise }) => {
+  const [weekData, setWeekData] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Fetch week data from API with caching
+  useEffect(() => {
+    const cacheKey = `${monthId}-${weekId}`;
+    
+    // Check if data is already cached
+    if (weekDataCache[cacheKey]) {
+      setWeekData(weekDataCache[cacheKey]);
+      return;
+    }
+
+    const fetchWeekData = async () => {
+      console.log("render")
+      setIsLoading(true);
+      try {
+        const response = await fetch(
+          `https://us-central1-rustpractice-84f71.cloudfunctions.net/getWeekProblems?month=${monthId}&week=${weekId}`
+        );
+        if (response.ok) {
+          const data = await response.json();
+          // Map API response to match our component structure
+          const mappedData = {
+            ...data,
+            exercises: data.problems?.map(problem => ({
+              id: problem.id,
+              title: problem.title,
+              description: problem.short_description,
+              difficulty: problem.difficulty,
+              hint: problem.hint || '',
+              problem: problem.problem || ''
+            })) || []
+          };
+          
+          // Cache the data
+          weekDataCache[cacheKey] = mappedData;
+          setWeekData(mappedData);
+        } else {
+          console.error('Failed to fetch week data');
+          setWeekData(null);
+        }
+      } catch (error) {
+        console.error('Error fetching week data:', error);
+        setWeekData(null);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchWeekData();
+  }, [monthId, weekId]);
+
+  if (isLoading || !weekData) {
     return (
       <div className="h-full flex flex-col items-center justify-center text-center text-zinc-600">
         <Terminal size={64} className="mb-4 opacity-20" />
-        <p className="text-xl">Select a week to view content.</p>
+        <p className="text-xl">{isLoading ? 'Loading...' : 'Select a week to view content.'}</p>
       </div>
     );
   }
 
-  const completedCount = week.exercises.filter(ex => completedExercises.has(ex.id)).length;
-  const totalCount = week.exercises.length;
+  const exercises = weekData.exercises || [];
+  const completedCount = exercises.filter(ex => completedExercises.has(ex.id)).length;
+  const totalCount = exercises.length;
   const progress = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
   return (
     <div className="max-w-5xl mx-auto">
       <div className="mb-10">
-        <h2 className="text-3xl font-bold text-zinc-100 mb-4">{week.title}</h2>
+        <h2 className="text-3xl font-bold text-zinc-100 mb-4">{weekData.title}</h2>
 
         <div className="prose prose-invert max-w-3xl prose-p:text-zinc-400 prose-p:leading-relaxed mb-6">
-          <MarkdownRenderer content={week.description} />
+          <MarkdownRenderer content={weekData.description} />
         </div>
 
         {totalCount > 0 && (
@@ -43,7 +100,7 @@ export const WeekView = ({ week, onOpenExercise, completedExercises = new Set(),
         )}
 
         <div className="flex flex-wrap gap-2">
-          {week.topics.map((topic, idx) => (
+          {weekData.topics && weekData.topics.map((topic, idx) => (
             <Badge key={idx} variant="topic">
               {topic}
             </Badge>
@@ -51,14 +108,14 @@ export const WeekView = ({ week, onOpenExercise, completedExercises = new Set(),
         </div>
       </div>
 
-      {week.folderStructure && (
+      {weekData.folderStructure && (
         <div className="mb-12 bg-black rounded-xl border border-zinc-800 p-6 overflow-hidden relative group">
           <div className="absolute top-4 right-4 text-zinc-600">
             <FolderTree size={20} />
           </div>
           <h3 className="text-sm font-mono text-zinc-400 mb-4 uppercase tracking-widest">Suggested Structure</h3>
           <pre className="font-mono text-sm text-rust-300 overflow-x-auto">
-            {week.folderStructure}
+            {weekData.folderStructure}
           </pre>
         </div>
       )}
@@ -68,11 +125,11 @@ export const WeekView = ({ week, onOpenExercise, completedExercises = new Set(),
           <Terminal className="text-rust-500" size={20} />
           Practice Exercises
         </h3>
-        <span className="text-sm text-zinc-500">{week.exercises.length} Challenges</span>
+        <span className="text-sm text-zinc-500">{exercises.length} Challenges</span>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
-        {week.exercises.map((ex) => (
+        {exercises.map((ex) => (
           <ExerciseCard
             key={ex.id}
             exercise={ex}
@@ -87,3 +144,5 @@ export const WeekView = ({ week, onOpenExercise, completedExercises = new Set(),
     </div>
   );
 };
+
+export const WeekView = React.memo(WeekViewComponent);
