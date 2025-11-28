@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useParams, useNavigate, Routes, Route, Navigate } from 'react-router-dom';
 import { Sidebar } from './components/organisms/Sidebar.jsx';
 import { Header } from './components/organisms/Header.jsx';
 import { WeekView } from './components/organisms/WeekView.jsx';
 import ExerciseModal from './components/organisms/ExerciseModal.jsx';
+import ErrorPage from './components/organisms/ErrorPage.jsx';
 import { useMobileView } from './hooks/useMobileView.js';
 
 // Hardcoded months data structure for sidebar
@@ -12,13 +14,16 @@ const MONTHS_DATA = [
   { id: 3, title: "Month 3: Systems", focus: "Systems programming and advanced topics" }
 ];
 
-const App = () => {
+const MainContent = () => {
   const isMobile = useMobileView();
-  const [selectedMonthId, setSelectedMonthId] = useState(1);
-  const [selectedWeekId, setSelectedWeekId] = useState(1);
+  const { monthId, weekId } = useParams();
+  const navigate = useNavigate();
   const [selectedExercise, setSelectedExercise] = useState(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(!isMobile);
   const [completedExercises, setCompletedExercises] = useState(new Set());
+
+  const selectedMonthId = parseInt(monthId?.replace('month', '')) || 1;
+  const selectedWeekId = parseInt(weekId?.replace('week', '')) || 1;
 
   // Sync sidebar state with mobile view
   useEffect(() => {
@@ -62,8 +67,14 @@ const App = () => {
   }, [selectedMonthId]);
 
   const handleMonthSelect = (id) => {
-    setSelectedMonthId(id);
-    setSelectedWeekId(1);
+    navigate(`/month${id}/week1`);
+  };
+
+  const handleWeekSelect = (id) => {
+    navigate(`/month${selectedMonthId}/week${id}`);
+    if (isMobile) {
+      setIsSidebarOpen(false);
+    }
   };
 
   return (
@@ -75,12 +86,7 @@ const App = () => {
         selectedWeekId={selectedWeekId}
         isOpen={isSidebarOpen}
         onSelectMonth={handleMonthSelect}
-        onSelectWeek={(id) => {
-          setSelectedWeekId(id);
-          if (isMobile) {
-            setIsSidebarOpen(false);
-          }
-        }}
+        onSelectWeek={handleWeekSelect}
         onClose={() => setIsSidebarOpen(false)}
         completedExercises={completedExercises}
       />
@@ -111,6 +117,16 @@ const App = () => {
       )}
 
     </div>
+  );
+};
+
+const App = () => {
+  return (
+    <Routes>
+      <Route path="/:monthId/:weekId" element={<MainContent />} />
+      <Route path="/" element={<Navigate to="/month1/week1" replace />} />
+      <Route path="*" element={<ErrorPage />} />
+    </Routes>
   );
 };
 
